@@ -1,11 +1,211 @@
 ---
 title: EDA
-author: Your name
+author: Leo P
 format: gfm
 ---
+
 
 ```{r}
 #| label: setup
 
-# 
+rm(list = ls()) #clears environment
+cat("\014") #clears console
+
+library(ggplot2)
+library(sf)
+
+Low_Wint_Run <- st_read(
+  "../data/LowerWintersRun_StreamData_v3.shp")
+
+Low_Wint_Run_data <- Low_Wint_Run|>
+  dplyr::select(ID, SinuosityI, PhysProv,Slope, strOrder, Avg_WD)
+
+#should get data in R workspace / git, not off local directory
+
 ```
+
+
+```{r}
+#summary and histograms
+
+
+summary(Low_Wint_Run_data)
+
+ggplot(Low_Wint_Run_data,aes(x=strOrder))+
+         geom_histogram()
+
+#right skewed histogram for stream order, many more 1st order streams
+
+ggplot(Low_Wint_Run_data,aes(x=Slope))+
+         geom_histogram()
+
+#right skewed histogram for slope
+
+ggplot(Low_Wint_Run_data,aes(x=SinuosityI))+
+         geom_histogram(bins = 100)
+#need to remove sinuosity index outlier
+
+#getting rid of outlier here, probably is an error, value is way out of expected range
+StreamData <- Low_Wint_Run_data |>
+  dplyr::filter(SinuosityI <= 200)
+
+ggplot(StreamData,aes(x=SinuosityI))+
+         geom_histogram(bins = 100)
+
+#sinuosity is normally distributed
+
+
+ggplot(StreamData,aes(x=Avg_WD))+
+         geom_histogram()
+
+#average channel width to depth ratio is also right skewed
+
+
+```
+
+```{r}
+#scatterplots
+
+
+ggplot(StreamData,aes(x=Avg_WD,y=SinuosityI))+
+  geom_point()+
+  geom_smooth()
+
+ggplot(StreamData,aes(x=Avg_WD,y=Slope))+
+  geom_point()+
+  geom_smooth()
+
+#seems like a negative curvilinear trend between avg_wd and slope
+
+
+ggplot(StreamData,aes(x=Slope,y=SinuosityI))+
+  geom_point()+
+  geom_smooth()
+
+#no strong relationship between slope and sinuosity, I thought there would be a negative relationship
+
+ggplot(StreamData,aes(x=Slope,y=SinuosityI))+
+  geom_point(aes(colour=PhysProv))+
+  geom_smooth()
+
+#categorizing by phys prov adds more info, larger slopes in piedmont streams
+
+
+ggplot(StreamData,aes(x=Slope,y=SinuosityI))+
+  geom_point(aes(colour=strOrder))+
+  geom_smooth()
+#this is an interesting graph, higher order streams clustered near 0, much more variation in 1st order streams, still thinking about what this means
+
+#boxplots of slope and sinuosity by stream order and phys province may show variation better
+
+```
+```{r}
+#boxplots
+
+
+ggplot(StreamData,aes(x=PhysProv,y=Avg_WD))+
+         geom_boxplot()
+
+
+
+
+
+ggplot(StreamData,aes(x=PhysProv,y=Slope))+
+         geom_boxplot()
+
+#greater variation in slope among piedmont streams, greater max, and more right skewed (higher slopes) - this follows theory
+
+ggplot(StreamData,aes(x=PhysProv,y=SinuosityI))+
+         geom_boxplot()
+
+#sinuosity similarly distributed between phys provinces
+
+ggplot(StreamData,aes(x=strOrder,y=SinuosityI))+
+         geom_boxplot()
+#need to transform strOrder from numerical to categorical variable
+#looked up on stack
+StreamData$strOrder<-as.factor(StreamData$strOrder)
+
+ggplot(StreamData,aes(x=strOrder,y=SinuosityI))+
+         geom_boxplot()
+
+#sinuosity slightly lower usually in 1st order streams and 1st order streams have the most low sinuosity (low value SI) segments, this follows theory. (SI = Sinuosity Index)
+#distribution of SI in other order streams is similar
+
+ggplot(StreamData,aes(x=strOrder,y=Slope))+
+         geom_boxplot()
+
+#gradually decreasing slopes as stream order gets higher. 1st order has the most variation and highest slopes. Highest order streams have lowest order slopes, this makes sense.
+
+ggplot(StreamData,aes(x=strOrder,y=Avg_WD))+
+         geom_boxplot()
+
+
+```
+
+
+```{r}
+#calculate % of stream segments that are each stream order and each phys province
+
+StreamData_CatCts<-StreamData|>
+  dplyr::count(PhysProv,strOrder)
+
+
+
+ggplot(StreamData_CatCts,aes(x = PhysProv, y = strOrder)) +
+    geom_point(aes(size = n)) +
+    scale_size_area()
+
+#need percents, not raw count since majority of samples are piedmont
+#I think dropping the geometry field 
+
+StreamData_cats <- StreamData|>
+  dplyr::select(PhysProv, strOrder)
+StreamData_cats_shares <-StreamData_cats|>
+    dplyr::group_by(PhysProv,strOrder) |>
+    dplyr::summarise(n = dplyr::n())|>
+    dplyr::mutate(share = n / sum(n))
+
+ggplot(StreamData_cats_shares, aes(x = PhysProv, y = strOrder, fill = share)) +
+    geom_tile() +
+    rcartocolor::scale_fill_carto_c(palette = "PurpOr")
+#this might just be better as a table
+
+#intend to use the following table, had to look up how to drop geometry field on google and used chatgpt to get the symbols right for my pipe 
+knitr::kable(
+    StreamData_cats_shares|>
+      sf::st_drop_geometry()|>
+      dplyr::select(PhysProv,strOrder,share),
+    align = "lrr",
+    col.names = c(
+        "PhysProv",
+        "strOrder",
+        "share"
+        
+    ),
+    caption = "Socioeconomic indicators, western MD counties, 2024"
+)
+
+
+
+#try heat map or stacked bars or bubbles, waffle?
+
+
+ggplot(StreamData, aes(x = PhysProv, y = strOrder, fill = Slope)) +
+    geom_tile() +
+    rcartocolor::scale_fill_carto_c(palette = "PurpOr")
+
+ggplot(StreamData, aes(x = PhysProv, y = strOrder, fill = SinuosityI)) +
+    geom_tile() +
+    rcartocolor::scale_fill_carto_c(palette = "PurpOr")
+
+
+#tiles not really looking good, table probably better
+#should I bin sinuosity and slope into categories?
+```
+
+
+# going to show how stream order and slope are related factors, how 1st order streams are much more numerous, and how first order streams have generally more geomorphic variation (sinuosity and slope)
+
+
+
