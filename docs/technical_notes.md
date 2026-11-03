@@ -32,7 +32,7 @@ date: 2026-11-02
 -Compare relationships of variables between different sub watersheds
 -Expand analysis to include additional physiographic provinces
 -Expand analysis to include additional variables representing stream geomorphology such as valley confinement
--Incorporate biotic measures of stream health into analysis
+-Incorporate biotic measures of stream health into the analysis
 
 ## Other notes
 
